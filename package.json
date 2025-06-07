@@ -1,17 +1,17 @@
 {
-  "name": "eris-user-token-tool",
+  "name": "discord-message-tool",
   "version": "1.0.0",
-  "main": "server.js",
-  "engines": {
-    "node": "20.x"
-  },
+  "description": "A test tool for sending Discord messages via user token with a web interface",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "eris": "^0.18.0",
-    "express": "^4.17.1",
-    "dotenv": "^16.0.3",
-    "node-fetch": "^2.6.7"
-  }
+    "discord.js": "^14.16.3",
+    "express": "^4.21.1",
+    "dotenv": "^16.4.5",
+    "express-session": "^1.18.0"
+  },
+  "author": "YourName",
+  "license": "MIT"
 }
