@@ -1,185 +1,179 @@
-require("dotenv").config();
-const Eris = require("eris");
-const express = require("express");
-const fetch = require("node-fetch");
-const app = express();
-
-app.use(express.json());
-app.use(express.static("."));
-
-let client = null;
-let cancelToken = null;
-let di.scordToken = null;
-
-// ルートでindex.htmlを返す
-app.get("/", (req, res) => res.sendFile(__dirname + "/index.html"));
-
-// トークン設定API
-app.post("/set-token", (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.status(400).json({ error: "トークンが必要です" });
-
-  try {
-    discordToken = token;
-    client = new Eris(token, { intents: 32767, restMode: true });
-    client.on("ready", () => console.log("ユーザートークンで接続"));
-    client.on("error", (err) => console.error("エラー:", err));
-    client.connect();
-    res.json({ message: "トークン設定完了" });
-  } catch (err) {
-    res.status(500).json({ error: `トークン設定エラー: ${err.message}` });
-  }
-});
-
-// チャンネル一覧取得API
-app.post("/get-channels", async (req, res) => {
-  const { guildId } = req.body;
-  if (!client || !guildId) {
-    return res
-      .status(400)
-      .json({ error: "クライアントまたはサーバーIDが必要です" });
-  }
-  try {
-    const channels = await client.getRESTGuildChannels(guildId);
-    const textChannels = channels
-      .filter((channel) => channel.type === 0)
-      .map((channel) => ({ id: channel.id, name: channel.name }));
-    res.json({ channels: textChannels });
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `チャンネル取得エラー: ${err.message}. サーバーIDが正しいか、トークンがサーバーにアクセス可能か確認してください。`,
-      });
-  }
-});
-
-// ユーザー一覧取得API
-app.post("/get-users", async (req, res) => {
-  const { guildId } = req.body;
-  if (!client || !guildId) {
-    return res
-      .status(400)
-      .json({ error: "クライアントまたはサーバーIDが必要です" });
-  }
-  try {
-    const members = await client.getRESTGuildMembers(guildId, 1000);
-    const users = members.map((member) => ({
-      id: member.user.id,
-      username: member.user.username,
-    }));
-    res.json({ users });
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `ユーザー取得エラー: ${err.message}. トークンがサーバーに参加しているか、権限があるか確認してください。`,
-      });
-  }
-});
-
-// メッセージ送信API（効率化：並列送信、スレッド作成）
-app.post("/send-message", async (req, res) => {
-  const {
-    channelIds,
-    message,
-    mentionUserIds,
-    repeatCount,
-    interval,
-    createThread,
-    threadName,
-  } = req.body;
-  if (!client || !discordToken || !channelIds || !message) {
-    return res
-      .status(400)
-      .json({
-        error: "クライアント、トークン、チャンネルID、メッセージが必要です",
-      });
-  }
-  try {
-    cancelToken = { cancelled: false };
-    const mentionPrefix = mentionUserIds
-      ? mentionUserIds
-          .split(/[\n,]+/)
-          .map((id) => id.trim())
-          .filter((id) => id)
-          .map((id) => `<@${id}>`)
-          .join(" ") + " "
-      : "";
-    const finalMessage = mentionPrefix + message;
-    const channelIdArray = channelIds
-      .split(/[\n,]+/)
-      .map((id) => id.trim())
-      .filter((id) => id);
-    const count = Math.max(1, Math.min(parseInt(repeatCount) || 1, 100));
-    const delay = Math.max(500, Math.min(parseInt(interval) || 1000, 10000));
-    const results = [];
-
-    for (let i = 0; i < count && !cancelToken.cancelled; i++) {
-      const sendPromises = channelIdArray.map(async (channelId) => {
-        if (cancelToken.cancelled) return;
-        try {
-          if (createThread) {
-            const threadResponse = await fetch(
-              `https://discord.com/api/v10/channels/${channelId}/threads`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${discordToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  name:
-                    threadName ||
-                    `スレッド ${new Date().toISOString().split("T")[0]}`,
-                  auto_archive_duration: 1440,
-                  type: 11, // 公開スレッド
-                }),
-              }
-            );
-            if (!threadResponse.ok) {
-              throw new Error(
-                `スレッド作成失敗: ${await threadResponse.text()}`
-              );
-            }
-            const thread = await threadResponse.json();
-            await client.createMessage(thread.id, finalMessage);
-            return `スレッド ${thread.id} に送信（${i + 1}回目）`;
-          } else {
-            await client.createMessage(channelId, finalMessage);
-            return `チャンネル ${channelId} に送信（${i + 1}回目）`;
-          }
-        } catch (err) {
-          return `チャンネル ${channelId} でエラー: ${err.message}. チャンネルがテキストチャンネルか、トークンにスレッド作成権限があるか確認してください。`;
-        }
-      });
-      const batchResults = await Promise.all(sendPromises);
-      results.push(...batchResults.filter((result) => result));
-      if (i < count - 1 && !cancelToken.cancelled) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Discordツール</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h2>Discordメッセージ送信ツール</h2>
+      <p>スレッド・ユーザーを取得はうまく動作しない可能性があります</p>
+      <div class="form-group">
+        <label for="token">ユーザートークン</label>
+        <input type="text" id="token" placeholder="ユーザートークンを入力" />
+        <button onclick="setToken()">トークン設定</button>
+      </div>
+      <div class="form-group">
+        <label for="guildId">サーバーID（任意）</label>
+        <input type="text" id="guildId" placeholder="サーバーIDを入力" />
+        <div class="button-group">
+          <button onclick="getChannels()">チャンネルを取得</button>
+          <button onclick="getUsers()">ユーザーを取得</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="channelId">チャンネルID（改行/カンマで複数入力可）</label>
+        <textarea
+          id="channelId"
+          placeholder="例: 123456789, 987654321"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="mentionUserId"
+          >メンションするユーザーID（改行/カンマで複数入力可、任意）</label
+        >
+        <textarea
+          id="mentionUserId"
+          placeholder="例: 123456789, 987654321"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="message">メッセージ</label>
+        <textarea id="message" placeholder="送信するメッセージ"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="repeatCount">繰り返し回数（1～100）</label>
+        <input
+          type="number"
+          id="repeatCount"
+          placeholder="例: 1"
+          min="1"
+          max="100"
+        />
+      </div>
+      <div class="form-group">
+        <label for="interval">送信間隔（秒、0.5～10）</label>
+        <input
+          type="number"
+          id="interval"
+          placeholder="例: 1"
+          min="0.5"
+          max="10"
+          step="0.1"
+        />
+      </div>
+      <div class="form-group">
+        <label for="createThread">スレッドを作成</label>
+        <input type="checkbox" id="createThread" />
+        <input type="text" id="threadName" placeholder="スレッド名（任意）" />
+      </div>
+      <div class="button-group">
+        <button onclick="sendMessage()">送信</button>
+        <button onclick="stopSending()" class="stop-button">停止</button>
+      </div>
+      <p id="status"></p>
+    </div>
+    <script>
+      async function setToken() {
+        const token = document.getElementById("token").value;
+        const response = await fetch("/set-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent =
+          result.message || result.error;
       }
-    }
-    if (cancelToken.cancelled) {
-      results.push("送信が停止されました");
-    }
-    res.json({ message: results.join(", ") });
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `送信エラー: ${err.message}. チャンネルIDやスレッド作成権限を確認してください。`,
-      });
-  }
-});
 
-// 送信停止API
-app.post("/stop-sending", (req, res) => {
-  if (cancelToken) {
-    cancelToken.cancelled = true;
-    res.json({ message: "送信を停止しました" });
-  } else {
-    res.json({ message: "送信中のタスクはありません" });
-  }
-});
+      async function getChannels() {
+        const guildId = document.getElementById("guildId").value;
+        if (!guildId) {
+          document.getElementById("status").textContent =
+            "サーバーIDを入力してください";
+          return;
+        }
+        const response = await fetch("/get-channels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId }),
+        });
+        const result = await response.json();
+        if (result.error) {
+          document.getElementById("status").textContent = result.error;
+          return;
+        }
+        const channelIdText = result.channels.map((ch) => ch.id).join("\n");
+        document.getElementById("channelId").value = channelIdText;
+        document.getElementById("status").textContent =
+          "チャンネル一覧を取得しました";
+      }
 
-app.listen(3000, () => console.log("サーバー起動: http://localhost:3000"));
+      async function getUsers() {
+        const guildId = document.getElementById("guildId").value;
+        if (!guildId) {
+          document.getElementById("status").textContent =
+            "サーバーIDを入力してください";
+          return;
+        }
+        const response = await fetch("/get-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId }),
+        });
+        const result = await response.json();
+        if (result.error) {
+          document.getElementById("status").textContent = result.error;
+          return;
+        }
+        const userIdText = result.users.map((user) => user.id).join("\n");
+        document.getElementById("mentionUserId").value = userIdText;
+        document.getElementById("status").textContent =
+          "ユーザー一覧を取得しました";
+      }
+
+      async function sendMessage() {
+        const channelIds = document.getElementById("channelId").value;
+        const message = document.getElementById("message").value;
+        const mentionUserIds = document.getElementById("mentionUserId").value;
+        const repeatCount = document.getElementById("repeatCount").value;
+        const interval = document.getElementById("interval").value;
+        const createThread = document.getElementById("createThread").checked;
+        const threadName = document.getElementById("threadName").value;
+        if (!channelIds || !message) {
+          document.getElementById("status").textContent =
+            "チャンネルIDとメッセージを入力してください";
+          return;
+        }
+        document.getElementById("status").textContent = "送信中...";
+        const response = await fetch("/send-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channelIds,
+            message,
+            mentionUserIds,
+            repeatCount,
+            interval: interval * 1000,
+            createThread,
+            threadName,
+          }),
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent =
+          result.message || result.error;
+      }
+
+      async function stopSending() {
+        const response = await fetch("/stop-sending", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent = result.message;
+      }
+    </script>
+  </body>
+</html>
