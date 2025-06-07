@@ -1,0 +1,17 @@
+{
+  "name": "eris-user-token-tool",
+  "version": "1.0.0",
+  "main": "server.js",
+  "engines": {
+    "node": "16.x"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "eris": "^0.18.0",
+    "express": "^4.17.1",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.7"
+  }
+}
