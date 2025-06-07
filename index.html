@@ -8,63 +8,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: "Yusei Magic", sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f0f0f0;
-    }
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .form-group {
-      margin-bottom: 15px;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-      font-size: 1.1em;
-    }
-    input, textarea, button {
-      width: 100%;
-      padding: 8px;
-      margin: 5px 0;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-family: "Yusei Magic", sans-serif;
-    }
-    textarea {
-      height: 80px;
-      resize: vertical;
-    }
-    .button-group {
-      display: flex;
-      gap: 10px;
-    }
-    button {
-      background: #4285f4;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #3267d6;
-    }
-    .stop-button {
-      background: #f44336;
-    }
-    .stop-button:hover {
-      background: #d32f2f;
-    }
-    #status {
-      margin-top: 10px;
-      color: #d32f2f;
-    }
+    body { font-family: "Yusei Magic", sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+    .container { max-width: 700px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-size: 1.1em; }
+    input, textarea, button { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+    textarea { height: 80px; resize: vertical; }
+    .button-group { display: flex; gap: 10px; }
+    button { background: #4285f4; color: white; border: none; cursor: pointer; }
+    button:hover { background: #3267d6; }
+    .stop-button { background: #f44336; }
+    .stop-button:hover { background: #d32f2f; }
+    #status { margin-top: 10px; color: #d32f2f; }
   </style>
 </head>
 <body>
@@ -117,128 +72,101 @@
   </div>
 
   <script>
-    let token = "";
     let sendInterval = null;
 
-    function setToken() {
-      token = document.getElementById("token").value.trim();
-      if (token) {
-        document.getElementById("status").textContent = "トークンが設定されました";
-      } else {
-        document.getElementById("status").textContent = "トークンを入力してください";
-      }
+    async function setToken() {
+      const token = document.getElementById("token").value.trim();
+      const response = await fetch("/set-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const result = await response.json();
+      document.getElementById("status").textContent = result.message || result.error;
     }
 
     async function getChannels() {
       const guildId = document.getElementById("guildId").value.trim();
-      if (!guildId || !token) {
-        document.getElementById("status").textContent = "サーバーIDとトークンを入力してください";
+      if (!guildId) {
+        document.getElementById("status").textContent = "サーバーIDを入力してください";
         return;
       }
-      try {
-        const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
-          headers: { Authorization: `Bot ${token}` }
-        });
-        if (!response.ok) throw new Error("チャンネル取得に失敗");
-        const channels = await response.json();
-        const channelIds = channels.map(ch => ch.id).join("\n");
-        document.getElementById("channelId").value = channelIds;
-        document.getElementById("status").textContent = "チャンネル一覧を取得しました";
-      } catch (error) {
-        document.getElementById("status").textContent = `エラー: ${error.message}`;
+      const response = await fetch("/get-channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId }),
+      });
+      const result = await response.json();
+      if (result.error) {
+        document.getElementById("status").textContent = result.error;
+        return;
       }
+      const channelIdText = result.channels.map((ch) => ch.id).join("\n");
+      document.getElementById("channelId").value = channelIdText;
+      document.getElementById("status").textContent = "チャンネル一覧を取得しました";
     }
 
     async function getUsers() {
       const guildId = document.getElementById("guildId").value.trim();
-      if (!guildId || !token) {
-        document.getElementById("status").textContent = "サーバーIDとトークンを入力してください";
+      if (!guildId) {
+        document.getElementById("status").textContent = "サーバーIDを入力してください";
         return;
       }
-      try {
-        const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000`, {
-          headers: { Authorization: `Bot ${token}` }
-        });
-        if (!response.ok) throw new Error("ユーザー取得に失敗");
-        const members = await response.json();
-        const userIds = members.map(m => m.user.id).join("\n");
-        document.getElementById("mentionUserId").value = userIds;
-        document.getElementById("status").textContent = "ユーザー一覧を取得しました";
-      } catch (error) {
-        document.getElementById("status").textContent = `エラー: ${error.message}`;
+      const response = await fetch("/get-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId }),
+      });
+      const result = await response.json();
+      if (result.error) {
+        document.getElementById("status").textContent = result.error;
+        return;
       }
+      const userIdText = result.users.map((user) => user.id).join("\n");
+      document.getElementById("mentionUserId").value = userIdText;
+      document.getElementById("status").textContent = "ユーザー一覧を取得しました";
     }
 
     async function sendMessage() {
-      const channelIds = document.getElementById("channelId").value.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
-      const message = document.getElementById("message").value.trim();
-      const mentionUserIds = document.getElementById("mentionUserId").value.split(/[\n,]+/).map(id => `<@${id.trim()}>`).filter(id => id);
-      const repeatCount = parseInt(document.getElementById("repeatCount").value) || 1;
-      const interval = parseFloat(document.getElementById("interval").value) * 1000 || 1000;
+      const channelIds = document.getElementById("channelId").value;
+      const message = document.getElementById("message").value;
+      const mentionUserIds = document.getElementById("mentionUserId").value;
+      const repeatCount = document.getElementById("repeatCount").value;
+      const interval = document.getElementById("interval").value;
       const createThread = document.getElementById("createThread").checked;
-      const threadName = document.getElementById("threadName").value.trim() || "New Thread";
-
-      if (!channelIds.length || !message || !token) {
-        document.getElementById("status").textContent = "チャンネルID、メッセージ、トークンを入力してください";
+      const threadName = document.getElementById("threadName").value;
+      if (!channelIds || !message) {
+        document.getElementById("status").textContent = "チャンネルIDとメッセージを入力してください";
         return;
       }
-      if (repeatCount > 100 || interval < 500) {
-        document.getElementById("status").textContent = "回数(1-100)または間隔(0.5秒以上)を確認してください";
-        return;
-      }
-
       document.getElementById("status").textContent = "送信中...";
-      if (sendInterval) clearInterval(sendInterval);
-
-      let sentCount = 0;
-      sendInterval = setInterval(async () => {
-        if (sentCount < repeatCount) {
-          for (const channelId of channelIds) {
-            try {
-              const payload = {
-                content: `${mentionUserIds.join(" ")} ${message}`,
-              };
-              if (createThread) {
-                const threadResponse = await fetch(`https://discord.com/api/v10/channels/${channelId}/threads`, {
-                  method: "POST",
-                  headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({ name: threadName, auto_archive_duration: 1440 })
-                });
-                const thread = await threadResponse.json();
-                await fetch(`https://discord.com/api/v10/channels/${thread.id}/messages`, {
-                  method: "POST",
-                  headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
-                  body: JSON.stringify(payload)
-                });
-              } else {
-                await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-                  method: "POST",
-                  headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json" },
-                  body: JSON.stringify(payload)
-                });
-              }
-              document.getElementById("status").textContent = `送信中... (${sentCount + 1}/${repeatCount})`;
-            } catch (error) {
-              document.getElementById("status").textContent = `エラー: ${error.message}`;
-              clearInterval(sendInterval);
-            }
-          }
-          sentCount++;
-        } else {
-          clearInterval(sendInterval);
-          sendInterval = null;
-          document.getElementById("status").textContent = "送信完了!";
-        }
-      }, interval);
+      const response = await fetch("/send-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelIds,
+          message,
+          mentionUserIds,
+          repeatCount,
+          interval: interval * 1000,
+          createThread,
+          threadName,
+        }),
+      });
+      const result = await response.json();
+      document.getElementById("status").textContent = result.message || result.error;
     }
 
-    function stopSending() {
-      if (sendInterval) {
-        clearInterval(sendInterval);
-        sendInterval = null;
-        document.getElementById("status").textContent = "送信を停止しました";
-      }
+    async function stopSending() {
+      const response = await fetch("/stop-sending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await response.json();
+      document.getElementById("status").textContent = result.message;
     }
 
     document.querySelectorAll("button, input, textarea").forEach(el => el.setAttribute("tabindex", "0"));
   </script>
+</body>
+</html>
