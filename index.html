@@ -1,172 +1,179 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Discordツール</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: "Yusei Magic", sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
-    .container { max-width: 700px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 5px; font-size: 1.1em; }
-    input, textarea, button { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
-    textarea { height: 80px; resize: vertical; }
-    .button-group { display: flex; gap: 10px; }
-    button { background: #4285f4; color: white; border: none; cursor: pointer; }
-    button:hover { background: #3267d6; }
-    .stop-button { background: #f44336; }
-    .stop-button:hover { background: #d32f2f; }
-    #status { margin-top: 10px; color: #d32f2f; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2>Discordメッセージ送信ツール</h2>
-    <p>スレッド・ユーザーを取得はうまく動作しない可能性があります</p>
-    <div class="form-group">
-      <label for="token">ユーザートークン</label>
-      <input type="text" id="token" placeholder="ユーザートークンを入力" />
-      <button onclick="setToken()">トークン設定</button>
-    </div>
-    <div class="form-group">
-      <label for="guildId">サーバーID（任意）</label>
-      <input type="text" id="guildId" placeholder="サーバーIDを入力" />
-      <div class="button-group">
-        <button onclick="getChannels()">チャンネルを取得</button>
-        <button onclick="getUsers()">ユーザーを取得</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Discordツール</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h2>Discordメッセージ送信ツール</h2>
+      <p>スレッド・ユーザーを取得はうまく動作しない可能性があります</p>
+      <div class="form-group">
+        <label for="token">ユーザートークン</label>
+        <input type="text" id="token" placeholder="ユーザートークンを入力" />
+        <button onclick="setToken()">トークン設定</button>
       </div>
+      <div class="form-group">
+        <label for="guildId">サーバーID（任意）</label>
+        <input type="text" id="guildId" placeholder="サーバーIDを入力" />
+        <div class="button-group">
+          <button onclick="getChannels()">チャンネルを取得</button>
+          <button onclick="getUsers()">ユーザーを取得</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="channelId">チャンネルID（改行/カンマで複数入力可）</label>
+        <textarea
+          id="channelId"
+          placeholder="例: 123456789, 987654321"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="mentionUserId"
+          >メンションするユーザーID（改行/カンマで複数入力可、任意）</label
+        >
+        <textarea
+          id="mentionUserId"
+          placeholder="例: 123456789, 987654321"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="message">メッセージ</label>
+        <textarea id="message" placeholder="送信するメッセージ"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="repeatCount">繰り返し回数（1～100）</label>
+        <input
+          type="number"
+          id="repeatCount"
+          placeholder="例: 1"
+          min="1"
+          max="100"
+        />
+      </div>
+      <div class="form-group">
+        <label for="interval">送信間隔（秒、0.5～10）</label>
+        <input
+          type="number"
+          id="interval"
+          placeholder="例: 1"
+          min="0.5"
+          max="10"
+          step="0.1"
+        />
+      </div>
+      <div class="form-group">
+        <label for="createThread">スレッドを作成</label>
+        <input type="checkbox" id="createThread" />
+        <input type="text" id="threadName" placeholder="スレッド名（任意）" />
+      </div>
+      <div class="button-group">
+        <button onclick="sendMessage()">送信</button>
+        <button onclick="stopSending()" class="stop-button">停止</button>
+      </div>
+      <p id="status"></p>
     </div>
-    <div class="form-group">
-      <label for="channelId">チャンネルID（改行/カンマで複数入力可）</label>
-      <textarea id="channelId" placeholder="例: 123456789, 987654321"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="mentionUserId">メンションするユーザーID（改行/カンマで複数入力可、任意）</label>
-      <textarea id="mentionUserId" placeholder="例: 123456789, 987654321"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="message">メッセージ</label>
-      <textarea id="message" placeholder="送信するメッセージ"></textarea>
-    </div>
-    <div class="form-group">
-      <label for="repeatCount">繰り返し回数（1～100）</label>
-      <input type="number" id="repeatCount" placeholder="例: 1" min="1" max="100" />
-    </div>
-    <div class="form-group">
-      <label for="interval">送信間隔（秒、0.5～10）</label>
-      <input type="number" id="interval" placeholder="例: 1" min="0.5" max="10" step="0.1" />
-    </div>
-    <div class="form-group">
-      <label for="createThread">スレッドを作成</label>
-      <input type="checkbox" id="createThread" />
-      <input type="text" id="threadName" placeholder="スレッド名（任意）" />
-    </div>
-    <div class="button-group">
-      <button onclick="sendMessage()">送信</button>
-      <button onclick="stopSending()" class="stop-button">停止</button>
-    </div>
-    <p id="status"></p>
-  </div>
-
-  <script>
-    let sendInterval = null;
-
-    async function setToken() {
-      const token = document.getElementById("token").value.trim();
-      const response = await fetch("/set-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const result = await response.json();
-      document.getElementById("status").textContent = result.message || result.error;
-    }
-
-    async function getChannels() {
-      const guildId = document.getElementById("guildId").value.trim();
-      if (!guildId) {
-        document.getElementById("status").textContent = "サーバーIDを入力してください";
-        return;
+    <script>
+      async function setToken() {
+        const token = document.getElementById("token").value;
+        const response = await fetch("/set-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent =
+          result.message || result.error;
       }
-      const response = await fetch("/get-channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId }),
-      });
-      const result = await response.json();
-      if (result.error) {
-        document.getElementById("status").textContent = result.error;
-        return;
-      }
-      const channelIdText = result.channels.map((ch) => ch.id).join("\n");
-      document.getElementById("channelId").value = channelIdText;
-      document.getElementById("status").textContent = "チャンネル一覧を取得しました";
-    }
 
-    async function getUsers() {
-      const guildId = document.getElementById("guildId").value.trim();
-      if (!guildId) {
-        document.getElementById("status").textContent = "サーバーIDを入力してください";
-        return;
+      async function getChannels() {
+        const guildId = document.getElementById("guildId").value;
+        if (!guildId) {
+          document.getElementById("status").textContent =
+            "サーバーIDを入力してください";
+          return;
+        }
+        const response = await fetch("/get-channels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId }),
+        });
+        const result = await response.json();
+        if (result.error) {
+          document.getElementById("status").textContent = result.error;
+          return;
+        }
+        const channelIdText = result.channels.map((ch) => ch.id).join("\n");
+        document.getElementById("channelId").value = channelIdText;
+        document.getElementById("status").textContent =
+          "チャンネル一覧を取得しました";
       }
-      const response = await fetch("/get-users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId }),
-      });
-      const result = await response.json();
-      if (result.error) {
-        document.getElementById("status").textContent = result.error;
-        return;
+
+      async function getUsers() {
+        const guildId = document.getElementById("guildId").value;
+        if (!guildId) {
+          document.getElementById("status").textContent =
+            "サーバーIDを入力してください";
+          return;
+        }
+        const response = await fetch("/get-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId }),
+        });
+        const result = await response.json();
+        if (result.error) {
+          document.getElementById("status").textContent = result.error;
+          return;
+        }
+        const userIdText = result.users.map((user) => user.id).join("\n");
+        document.getElementById("mentionUserId").value = userIdText;
+        document.getElementById("status").textContent =
+          "ユーザー一覧を取得しました";
       }
-      const userIdText = result.users.map((user) => user.id).join("\n");
-      document.getElementById("mentionUserId").value = userIdText;
-      document.getElementById("status").textContent = "ユーザー一覧を取得しました";
-    }
 
-    async function sendMessage() {
-      const channelIds = document.getElementById("channelId").value;
-      const message = document.getElementById("message").value;
-      const mentionUserIds = document.getElementById("mentionUserId").value;
-      const repeatCount = document.getElementById("repeatCount").value;
-      const interval = document.getElementById("interval").value;
-      const createThread = document.getElementById("createThread").checked;
-      const threadName = document.getElementById("threadName").value;
-      if (!channelIds || !message) {
-        document.getElementById("status").textContent = "チャンネルIDとメッセージを入力してください";
-        return;
+      async function sendMessage() {
+        const channelIds = document.getElementById("channelId").value;
+        const message = document.getElementById("message").value;
+        const mentionUserIds = document.getElementById("mentionUserId").value;
+        const repeatCount = document.getElementById("repeatCount").value;
+        const interval = document.getElementById("interval").value;
+        const createThread = document.getElementById("createThread").checked;
+        const threadName = document.getElementById("threadName").value;
+        if (!channelIds || !message) {
+          document.getElementById("status").textContent =
+            "チャンネルIDとメッセージを入力してください";
+          return;
+        }
+        document.getElementById("status").textContent = "送信中...";
+        const response = await fetch("/send-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channelIds,
+            message,
+            mentionUserIds,
+            repeatCount,
+            interval: interval * 1000,
+            createThread,
+            threadName,
+          }),
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent =
+          result.message || result.error;
       }
-      document.getElementById("status").textContent = "送信中...";
-      const response = await fetch("/send-message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channelIds,
-          message,
-          mentionUserIds,
-          repeatCount,
-          interval: interval * 1000,
-          createThread,
-          threadName,
-        }),
-      });
-      const result = await response.json();
-      document.getElementById("status").textContent = result.message || result.error;
-    }
 
-    async function stopSending() {
-      const response = await fetch("/stop-sending", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const result = await response.json();
-      document.getElementById("status").textContent = result.message;
-    }
-
-    document.querySelectorAll("button, input, textarea").forEach(el => el.setAttribute("tabindex", "0"));
-  </script>
-</body>
+      async function stopSending() {
+        const response = await fetch("/stop-sending", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const result = await response.json();
+        document.getElementById("status").textContent = result.message;
+      }
+    </script>
+  </body>
 </html>
