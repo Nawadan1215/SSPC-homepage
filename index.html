@@ -1,350 +1,185 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>匿名Discordチャット</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root {
-      --bg: #fafafa;
-      --fg: #000;
-      --card: #fff;
-      --shadow: rgba(0,0,0,0.1);
-      --accent: #4285f4;
-    }
+require("dotenv").config();
+const Eris = require("eris");
+const express = require("express");
+const fetch = require("node-fetch");
+const app = express();
 
-    body.dark {
-      --bg: #1e1e1e;
-      --fg: #eee;
-      --card: #2a2a2a;
-      --shadow: rgba(0,0,0,0.6);
-      --accent: #42a5f5;
-    }
+app.use(express.json());
+app.use(express.static("."));
 
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: "Roboto", sans-serif;
-      margin: 0;
-      transition: background 0.3s, color 0.3s;
-    }
+let client = null;
+let cancelToken = null;
+let di.scordToken = null;
 
-    header {
-      background: var(--accent);
-      color: white;
-      padding: 15px 20px;
-      font-size: 1.2em;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 5px var(--shadow);
-    }
+// ルートでindex.htmlを返す
+app.get("/", (req, res) => res.sendFile(__dirname + "/index.html"));
 
-    main {
-      max-width: 700px;
-      margin: 20px auto;
-      background: var(--card);
-      padding: 20px;
-      box-shadow: 0 4px 15px var(--shadow);
-      border-radius: 8px;
-    }
+// トークン設定API
+app.post("/set-token", (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: "トークンが必要です" });
 
-    textarea, input, select {
-      width: 100%;
-      padding: 10px;
-      font-size: 1em;
-      margin: 5px 0;
-      background: var(--bg);
-      color: var(--fg);
-      border: 1px solid var(--shadow);
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
+  try {
+    discordToken = token;
+    client = new Eris(token, { intents: 32767, restMode: true });
+    client.on("ready", () => console.log("ユーザートークンで接続"));
+    client.on("error", (err) => console.error("エラー:", err));
+    client.connect();
+    res.json({ message: "トークン設定完了" });
+  } catch (err) {
+    res.status(500).json({ error: `トークン設定エラー: ${err.message}` });
+  }
+});
 
-    textarea {
-      height: 80px;
-      resize: vertical;
-    }
-
-    button {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      font-size: 1em;
-      cursor: pointer;
-      border-radius: 4px;
-      transition: background 0.3s;
-    }
-
-    button:hover {
-      background: color-mix(in srgb, var(--accent) 80%, #000);
-    }
-
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
-    }
-
-    .row { margin-top: 15px; }
-    .small { font-size: 0.9em; color: #666; }
-
-    #centerNotify {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #4caf50;
-      color: white;
-      padding: 15px 25px;
-      font-size: 1.2em;
-      border-radius: 6px;
-      display: none;
-      z-index: 999;
-      animation: fadeInOut 3s forwards;
-    }
-
-    @keyframes fadeInOut {
-      0% { opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { opacity: 0; }
-    }
-
-    #tosModal {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-
-    #tosModalContent {
-      background: var(--card);
-      padding: 30px;
-      max-width: 600px;
-      border-radius: 8px;
-      box-shadow: 0 0 15px var(--shadow);
-      color: var(--fg);
-    }
-
-    #darkToggle {
-      background: #555;
-      font-size: 0.9em;
-      margin-left: 10px;
-      border-radius: 4px;
-    }
-
-    #settingsDialog {
-      border: none;
-      border-radius: 8px;
-      padding: 10px;
-    }
-
-    @media (max-width: 768px) {
-      main { margin: 10px; padding: 15px; }
-      header { padding: 10px; }
-      button { width: 100%; margin-top: 10px; }
-    }
-  </style>
-</head>
-<body>
-  <div id="tosModal">
-    <div id="tosModalContent">
-      <h2>利用規約</h2>
-      <p>本サービスは、DiscordのWebhookを通じて匿名で送信する実験的なツールです。不適切な言葉やスパムは禁止です。自己責任で利用してください。</p>
-      <button onclick="acceptTOS()">同意してはじめる</button>
-    </div>
-  </div>
-
-  <header>
-    <span>匿名Discordチャット</span>
-    <div>
-      <button onclick="openSettings()">設定</button>
-      <button id="darkToggle" onclick="toggleDark()">ダークモード</button>
-    </div>
-  </header>
-
-  <main>
-    <div class="row">
-      <label for="webhookSelect">送信先：</label>
-      <select id="webhookSelect" aria-label="Webhook選択">
-        <option value="">選択してください</option>
-      </select>
-    </div>
-    <div class="row">
-      <label for="username">名前（省略可）：</label>
-      <input type="text" id="username" placeholder="例: 匿名さん" aria-label="ユーザー名" />
-    </div>
-    <div class="row">
-      <label for="avatarUrl">アイコンURL（省略可）：</label>
-      <input type="url" id="avatarUrl" placeholder="https://example.com/avatar.png" aria-label="アイコンURL" />
-    </div>
-    <div class="row">
-      <label for="imageInput">画像（任意）：</label>
-      <input type="file" id="imageInput" accept="image/*" aria-label="画像アップロード" />
-    </div>
-    <div class="row">
-      <label for="messageInput">メッセージ：</label>
-      <textarea id="messageInput" placeholder="ここにメッセージを入力..." aria-label="メッセージ入力"></textarea>
-    </div>
-    <button id="sendButton" onclick="sendMessage()" aria-label="メッセージ送信">送信</button>
-    <p id="status" class="small" role="status"></p>
-  </main>
-
-  <dialog id="settingsDialog">
-    <form method="dialog">
-      <h3>Webhook登録（最大5件）</h3>
-      <div id="webhookInputs"></div>
-      <button type="submit" aria-label="設定を閉じる">閉じる</button>
-    </form>
-  </dialog>
-
-  <div id="centerNotify">送信しました</div>
-
-  <script>
-    const NG_WORDS = ["死ね", "殺す", "ばか", "fuck", "shit"];
-    const RATE_LIMIT_MS = 10000;
-    let lastSentTime = 0;
-
-    function acceptTOS() {
-      localStorage.setItem("tosAccepted", "true");
-      document.getElementById("tosModal").style.display = "none";
-    }
-
-    function loadTheme() {
-      const mode = localStorage.getItem("dark") === "true" || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.body.classList.toggle("dark", mode);
-    }
-
-    function toggleDark() {
-      const now = document.body.classList.contains("dark");
-      localStorage.setItem("dark", !now);
-      loadTheme();
-    }
-
-    function loadWebhooks() {
-      const data = JSON.parse(localStorage.getItem("webhooks") || "[]");
-      const sel = document.getElementById("webhookSelect");
-      sel.innerHTML = '<option value="">選択してください</option>';
-      data.forEach(entry => {
-        const opt = document.createElement("option");
-        opt.value = entry.url;
-        opt.textContent = entry.name || entry.url;
-        sel.appendChild(opt);
+// チャンネル一覧取得API
+app.post("/get-channels", async (req, res) => {
+  const { guildId } = req.body;
+  if (!client || !guildId) {
+    return res
+      .status(400)
+      .json({ error: "クライアントまたはサーバーIDが必要です" });
+  }
+  try {
+    const channels = await client.getRESTGuildChannels(guildId);
+    const textChannels = channels
+      .filter((channel) => channel.type === 0)
+      .map((channel) => ({ id: channel.id, name: channel.name }));
+    res.json({ channels: textChannels });
+  } catch (err) {
+    res
+      .status(500)
+      .json({
+        error: `チャンネル取得エラー: ${err.message}. サーバーIDが正しいか、トークンがサーバーにアクセス可能か確認してください。`,
       });
-    }
+  }
+});
 
-    function openSettings() {
-      const data = JSON.parse(localStorage.getItem("webhooks") || "[]");
-      const wrap = document.getElementById("webhookInputs");
-      wrap.innerHTML = "";
-      for (let i = 0; i < 5; i++) {
-        const obj = data[i] || { name: "", url: "" };
-        const name = document.createElement("input");
-        const url = document.createElement("input");
-        name.placeholder = "名前";
-        url.placeholder = "URL (https://から始まる)";
-        name.value = obj.name;
-        url.value = obj.url;
-        name.setAttribute("aria-label", `Webhook ${i+1} の名前`);
-        url.setAttribute("aria-label", `Webhook ${i+1} のURL`);
-        wrap.append(name, url, document.createElement("br"));
-      }
-      document.getElementById("settingsDialog").onsubmit = (e) => {
-        e.preventDefault();
-        const inputs = wrap.querySelectorAll("input");
-        const newData = [];
-        for (let i = 0; i < inputs.length; i += 2) {
-          const name = inputs[i].value.trim();
-          const url = inputs[i + 1].value.trim();
-          if (url.startsWith("https://")) newData.push({ name, url });
+// ユーザー一覧取得API
+app.post("/get-users", async (req, res) => {
+  const { guildId } = req.body;
+  if (!client || !guildId) {
+    return res
+      .status(400)
+      .json({ error: "クライアントまたはサーバーIDが必要です" });
+  }
+  try {
+    const members = await client.getRESTGuildMembers(guildId, 1000);
+    const users = members.map((member) => ({
+      id: member.user.id,
+      username: member.user.username,
+    }));
+    res.json({ users });
+  } catch (err) {
+    res
+      .status(500)
+      .json({
+        error: `ユーザー取得エラー: ${err.message}. トークンがサーバーに参加しているか、権限があるか確認してください。`,
+      });
+  }
+});
+
+// メッセージ送信API（効率化：並列送信、スレッド作成）
+app.post("/send-message", async (req, res) => {
+  const {
+    channelIds,
+    message,
+    mentionUserIds,
+    repeatCount,
+    interval,
+    createThread,
+    threadName,
+  } = req.body;
+  if (!client || !discordToken || !channelIds || !message) {
+    return res
+      .status(400)
+      .json({
+        error: "クライアント、トークン、チャンネルID、メッセージが必要です",
+      });
+  }
+  try {
+    cancelToken = { cancelled: false };
+    const mentionPrefix = mentionUserIds
+      ? mentionUserIds
+          .split(/[\n,]+/)
+          .map((id) => id.trim())
+          .filter((id) => id)
+          .map((id) => `<@${id}>`)
+          .join(" ") + " "
+      : "";
+    const finalMessage = mentionPrefix + message;
+    const channelIdArray = channelIds
+      .split(/[\n,]+/)
+      .map((id) => id.trim())
+      .filter((id) => id);
+    const count = Math.max(1, Math.min(parseInt(repeatCount) || 1, 100));
+    const delay = Math.max(500, Math.min(parseInt(interval) || 1000, 10000));
+    const results = [];
+
+    for (let i = 0; i < count && !cancelToken.cancelled; i++) {
+      const sendPromises = channelIdArray.map(async (channelId) => {
+        if (cancelToken.cancelled) return;
+        try {
+          if (createThread) {
+            const threadResponse = await fetch(
+              `https://discord.com/api/v10/channels/${channelId}/threads`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${discordToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  name:
+                    threadName ||
+                    `スレッド ${new Date().toISOString().split("T")[0]}`,
+                  auto_archive_duration: 1440,
+                  type: 11, // 公開スレッド
+                }),
+              }
+            );
+            if (!threadResponse.ok) {
+              throw new Error(
+                `スレッド作成失敗: ${await threadResponse.text()}`
+              );
+            }
+            const thread = await threadResponse.json();
+            await client.createMessage(thread.id, finalMessage);
+            return `スレッド ${thread.id} に送信（${i + 1}回目）`;
+          } else {
+            await client.createMessage(channelId, finalMessage);
+            return `チャンネル ${channelId} に送信（${i + 1}回目）`;
+          }
+        } catch (err) {
+          return `チャンネル ${channelId} でエラー: ${err.message}. チャンネルがテキストチャンネルか、トークンにスレッド作成権限があるか確認してください。`;
         }
-        localStorage.setItem("webhooks", JSON.stringify(newData));
-        loadWebhooks();
-        document.getElementById("settingsDialog").close();
-      };
-      document.getElementById("settingsDialog").showModal();
-    }
-
-    async function sendMessage() {
-      const now = Date.now();
-      if (now - lastSentTime < RATE_LIMIT_MS) {
-        alert("10秒空けてください");
-        return;
-      }
-
-      const url = document.getElementById("webhookSelect").value;
-      const name = document.getElementById("username").value;
-      const avatar = document.getElementById("avatarUrl").value;
-      const content = document.getElementById("messageInput").value;
-      if (!url) {
-        alert("Webhook未選択");
-        return;
-      }
-      if (!content.trim()) {
-        alert("メッセージが空です");
-        return;
-      }
-      if (content.length > 300) {
-        alert("300文字以内で送信してください");
-        return;
-      }
-      if (content.includes("@")) {
-        alert("メンションは禁止です");
-        return;
-      }
-
-      const lowered = content.toLowerCase();
-      if (NG_WORDS.some(w => lowered.includes(w))) {
-        alert("不適切な言葉が含まれています");
-        return;
-      }
-
-      const file = document.getElementById("imageInput").files[0];
-      const btn = document.getElementById("sendButton");
-      btn.disabled = true;
-      document.getElementById("status").textContent = "送信中...";
-
-      const form = new FormData();
-      form.append("payload_json", JSON.stringify({
-        username: name || undefined,
-        avatar_url: avatar || undefined,
-        content
-      }));
-      if (file) form.append("file", file);
-
-      try {
-        const res = await fetch(url, { method: "POST", body: form });
-        if (res.ok) {
-          document.getElementById("centerNotify").style.display = "block";
-          setTimeout(() => {
-            document.getElementById("centerNotify").style.display = "none";
-          }, 3000);
-          document.getElementById("messageInput").value = "";
-          document.getElementById("imageInput").value = "";
-          lastSentTime = now;
-          document.getElementById("status").textContent = "送信成功！";
-        } else {
-          throw new Error("送信失敗");
-        }
-      } catch (e) {
-        alert("送信に失敗しました: " + e.message);
-      } finally {
-        btn.disabled = false;
-        setTimeout(() => document.getElementById("status").textContent = "", 3000);
+      });
+      const batchResults = await Promise.all(sendPromises);
+      results.push(...batchResults.filter((result) => result));
+      if (i < count - 1 && !cancelToken.cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
+    if (cancelToken.cancelled) {
+      results.push("送信が停止されました");
+    }
+    res.json({ message: results.join(", ") });
+  } catch (err) {
+    res
+      .status(500)
+      .json({
+        error: `送信エラー: ${err.message}. チャンネルIDやスレッド作成権限を確認してください。`,
+      });
+  }
+});
 
-    window.onload = () => {
-      if (localStorage.getItem("tosAccepted") !== "true") {
-        document.getElementById("tosModal").style.display = "flex";
-      }
-      loadTheme();
-      loadWebhooks();
-      // キーボードアクセス
-      document.querySelectorAll("button, input, select, textarea").forEach(el => el.setAttribute("tabindex", "0"));
-    };
-  </script>
+// 送信停止API
+app.post("/stop-sending", (req, res) => {
+  if (cancelToken) {
+    cancelToken.cancelled = true;
+    res.json({ message: "送信を停止しました" });
+  } else {
+    res.json({ message: "送信中のタスクはありません" });
+  }
+});
+
+app.listen(3000, () => console.log("サーバー起動: http://localhost:3000"));
