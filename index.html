@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord Message Sender</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    input {
+      padding: 10px;
+      margin: 10px;
+      width: 80%;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #5865F2;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #4752C4;
+    }
+    #response {
+      margin-top: 20px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Discord メッセージ送信</h2>
+    <input type="text" id="token" placeholder="ユーザートークンを入力">
+    <input type="text" id="channelId" placeholder="チャンネルIDを入力">
+    <button onclick="sendMessage()">メッセージ送信</button>
+    <div id="response"></div>
+  </div>
+  <script>
+    async function sendMessage() {
+      const token = document.getElementById('token').value;
+      const channelId = document.getElementById('channelId').value;
+      const responseDiv = document.getElementById('response');
+
+      if (!token || !channelId) {
+        responseDiv.innerText = 'トークンとチャンネルIDを入力してください！';
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ content: 'test' })
+        });
+
+        if (response.ok) {
+          responseDiv.innerText = 'メッセージを送信しました！';
+        } else {
+          const errorData = await response.json();
+          responseDiv.innerText = `エラー: ${errorData.message || '送信に失敗しました'}`;
+        }
+      } catch (error) {
+        responseDiv.innerText = `エラー: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
