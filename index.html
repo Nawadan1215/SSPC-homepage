@@ -59,7 +59,7 @@
     <input type="text" id="channelId" placeholder="チャンネルIDを入力">
     <button onclick="sendMessage()">メッセージ送信</button>
     <div id="response"></div>
-    <p class="warning">made by nawa</p>
+    <p class="warning">警告: ユーザートークンの使用はセキュリティリスクがあります。Botトークンを推奨します。</p>
   </div>
   <script>
     async function sendMessage() {
@@ -73,19 +73,14 @@
       }
 
       try {
-        const response = await axios.post(
-          `https://discord.com/api/v10/channels/${channelId}/messages`,
-          { content: 'test' },
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        responseDiv.innerText = 'メッセージを送信しました！';
+        const response = await axios.post('/api/discord', {
+          token,
+          channelId,
+          content: 'test'
+        });
+        responseDiv.innerText = response.data.message || 'メッセージを送信しました！';
       } catch (error) {
-        responseDiv.innerText = `エラー: ${error.response?.data?.message || error.message}`;
+        responseDiv.innerText = `エラー: ${error.response?.data?.error || error.message}`;
       }
     }
   </script>
