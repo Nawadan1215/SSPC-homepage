@@ -12,7 +12,7 @@ let cancelToken = null;
 let discordToken = null;
 
 // ルートでindex.htmlを返す
-app.get("/tool", (req, res) => res.sendFile(__dirname + "/index.html"));
+app.get("/", (req, res) => res.sendFile(__dirname + "/index.html"));
 
 // トークン設定API
 app.post("/set-token", (req, res) => {
