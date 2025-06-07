@@ -21,9 +21,12 @@ app.post("/set-token", (req, res) => {
 
   try {
     discordToken = token;
-    client = new Eris(token, { intents: 32767, restMode: true });
+    client = new Eris(token, { 
+      intents: ["all"], // 全てのインテントを有効化
+      restMode: true 
+    });
     client.on("ready", () => console.log("ユーザートークンで接続"));
-    client.on("error", (err) => console.error("エラー:", err));
+    client.on("error", (err) => console.error("エラー:", err.message));
     client.connect();
     res.json({ message: "トークン設定完了" });
   } catch (err) {
@@ -35,22 +38,19 @@ app.post("/set-token", (req, res) => {
 app.post("/get-channels", async (req, res) => {
   const { guildId } = req.body;
   if (!client || !guildId) {
-    return res
-      .status(400)
-      .json({ error: "クライアントまたはサーバーIDが必要です" });
+    return res.status(400).json({ error: "クライアントまたはサーバーIDが必要です" });
   }
   try {
     const channels = await client.getRESTGuildChannels(guildId);
     const textChannels = channels
-      .filter((channel) => channel.type === 0)
+      .filter((channel) => channel.type === 0) // テキストチャンネルのみ
       .map((channel) => ({ id: channel.id, name: channel.name }));
+    if (textChannels.length === 0) throw new Error("テキストチャンネルが見つかりません");
     res.json({ channels: textChannels });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `チャンネル取得エラー: ${err.message}. サーバーIDが正しいか、トークンがサーバーにアクセス可能か確認してください。`,
-      });
+    res.status(500).json({
+      error: `チャンネル取得エラー: ${err.message}. サーバーIDが正しいか、トークンに権限があるか確認してください。`,
+    });
   }
 });
 
@@ -58,23 +58,20 @@ app.post("/get-channels", async (req, res) => {
 app.post("/get-users", async (req, res) => {
   const { guildId } = req.body;
   if (!client || !guildId) {
-    return res
-      .status(400)
-      .json({ error: "クライアントまたはサーバーIDが必要です" });
+    return res.status(400).json({ error: "クライアントまたはサーバーIDが必要です" });
   }
   try {
-    const members = await client.getRESTGuildMembers(guildId, 1000);
+    const members = await client.getRESTGuildMembers(guildId, { limit: 1000 });
+    if (!members || members.length === 0) throw new Error("メンバーが取得できませんでした");
     const users = members.map((member) => ({
       id: member.user.id,
       username: member.user.username,
     }));
     res.json({ users });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `ユーザー取得エラー: ${err.message}. トークンがサーバーに参加しているか、権限があるか確認してください。`,
-      });
+    res.status(500).json({
+      error: `ユーザー取得エラー: ${err.message}. トークンにGUILD_MEMBERSインテントと閲覧権限があるか、Botがサーバーに参加しているか確認してください。`,
+    });
   }
 });
 
@@ -90,11 +87,9 @@ app.post("/send-message", async (req, res) => {
     threadName,
   } = req.body;
   if (!client || !discordToken || !channelIds || !message) {
-    return res
-      .status(400)
-      .json({
-        error: "クライアント、トークン、チャンネルID、メッセージが必要です",
-      });
+    return res.status(400).json({
+      error: "クライアント、トークン、チャンネルID、メッセージが必要です",
+    });
   }
   try {
     cancelToken = { cancelled: false };
@@ -119,38 +114,25 @@ app.post("/send-message", async (req, res) => {
       const sendPromises = channelIdArray.map(async (channelId) => {
         if (cancelToken.cancelled) return;
         try {
+          const channel = await client.getRESTChannel(channelId);
+          if (!channel || channel.type !== 0) {
+            throw new Error(`チャンネル ${channelId} はテキストチャンネルではありません`);
+          }
           if (createThread) {
-            const threadResponse = await fetch(
-              `https://discord.com/api/v10/channels/${channelId}/threads`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${discordToken}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  name:
-                    threadName ||
-                    `スレッド ${new Date().toISOString().split("T")[0]}`,
-                  auto_archive_duration: 1440,
-                  type: 11, // 公開スレッド
-                }),
-              }
-            );
-            if (!threadResponse.ok) {
-              throw new Error(
-                `スレッド作成失敗: ${await threadResponse.text()}`
-              );
-            }
-            const thread = await threadResponse.json();
-            await client.createMessage(thread.id, finalMessage);
-            return `スレッド ${thread.id} に送信（${i + 1}回目）`;
+            const threadResponse = await client.createGuildChannel(channel.guild_id, {
+              name: threadName || `スレッド ${new Date().toISOString().split("T")[0]}`,
+              type: 11, // 公開スレッド
+              parent_id: channelId,
+              auto_archive_duration: 1440,
+            });
+            await client.createMessage(threadResponse.id, finalMessage);
+            return `スレッド ${threadResponse.id} に送信（${i + 1}回目）`;
           } else {
             await client.createMessage(channelId, finalMessage);
             return `チャンネル ${channelId} に送信（${i + 1}回目）`;
           }
         } catch (err) {
-          return `チャンネル ${channelId} でエラー: ${err.message}. チャンネルがテキストチャンネルか、トークンにスレッド作成権限があるか確認してください。`;
+          return `チャンネル ${channelId} でエラー: ${err.message}. トークンにスレッド作成権限があるか確認してください。`;
         }
       });
       const batchResults = await Promise.all(sendPromises);
@@ -164,11 +146,9 @@ app.post("/send-message", async (req, res) => {
     }
     res.json({ message: results.join(", ") });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: `送信エラー: ${err.message}. チャンネルIDやスレッド作成権限を確認してください。`,
-      });
+    res.status(500).json({
+      error: `送信エラー: ${err.message}. チャンネルIDやスレッド作成権限を確認してください。`,
+    });
   }
 });
 
